@@ -81,12 +81,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Package,
-  LayoutGrid,
-  Grid3X3,
-  List,
-  Grid2X2,
-  Columns2,
-  Layers,
   Cloud,
   Laptop,
   LogIn,
@@ -1836,20 +1830,6 @@ export default function App() {
     setToDate(null);
   };
 
-  // View layout definitions
-  const layoutOptions: {
-    id: ViewLayout;
-    label: string;
-    icon: React.FC<{ className?: string }>;
-    desc: string;
-  }[] = [
-    { id: 'grid-4', label: '۴ در سطر', icon: LayoutGrid, desc: 'چیدمان ۴ ستونه متراکم و مدرن' },
-    { id: 'grid-3', label: '۳ در سطر', icon: Grid3X3, desc: 'چیدمان ۳ ستونه استاندارد' },
-    { id: 'list', label: 'خطی / سطری', icon: List, desc: 'نمایش افقی و سطری کالاها' },
-    { id: 'compact', label: 'کوچک و فشرده', icon: Grid2X2, desc: 'کارت‌های مینیاتوری برای پایش سریع' },
-    { id: 'large', label: 'بزرگ با جزئیات', icon: Columns2, desc: '۲ در سطر با عکس‌های درشت' },
-  ];
-
   const getGridContainerClass = (currentLayout: ViewLayout) => {
     switch (currentLayout) {
       case 'grid-4':
@@ -2239,44 +2219,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Layout Switcher & Status Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80">
-              {/* Product Counter / Summary */}
-              <div className="flex items-center gap-2 text-xs text-slate-400 tabular-nums">
-                <Layers className="w-4 h-4 text-indigo-400" />
-                <span>
-                  نمایش <strong className="text-white font-mono">{toPersianDigits(filteredProducts.length)}</strong> کالا از مجموع{' '}
-                  <strong className="text-slate-300 font-mono">{toPersianDigits(products.length)}</strong>
-                </span>
-              </div>
-
-              {/* Layout Switcher Segmented Control */}
-              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 self-start sm:self-auto overflow-x-auto max-w-full">
-                <span className="text-[11px] text-slate-400 font-medium px-2 hidden lg:inline">
-                  حالت نمایش:
-                </span>
-                {layoutOptions.map((opt) => {
-                  const Icon = opt.icon;
-                  const isActive = layout === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      onClick={() => handleLayoutChange(opt.id)}
-                      title={opt.desc}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-95 whitespace-nowrap ${
-                        isActive
-                          ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30 font-bold'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{opt.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Product Cards Container */}
             {loading ? (
               <div className="py-20 text-center text-slate-400 text-sm">
@@ -2361,6 +2303,9 @@ export default function App() {
         onSaveCloudflareOrigin={handleSaveCloudflareOrigin}
         cloudflareMirrors={cloudflareMirrors}
         onSaveCloudflareMirrors={handleSaveCloudflareMirrors}
+        layout={layout}
+        onChangeLayout={handleLayoutChange}
+        filteredProductsCount={filteredProducts.length}
       />
 
       {/* MODALS */}

@@ -15,6 +15,12 @@ import {
   FileJson,
   Info,
   Trash2,
+  LayoutGrid,
+  Grid3X3,
+  List,
+  Grid2X2,
+  Columns2,
+  Layers,
 } from 'lucide-react';
 import {
   BackupBundle,
@@ -28,6 +34,7 @@ import {
 import { toPersianDigits } from '../utils/jalali.ts';
 import { parseAndValidateBackupJson } from '../services/storageSync.ts';
 import { PWAInstallButton } from './PWAInstallButton.tsx';
+import { ViewLayout } from './ProductCard.tsx';
 
 interface RightDrawerMenuProps {
   isOpen: boolean;
@@ -57,7 +64,23 @@ interface RightDrawerMenuProps {
   onSaveCloudflareOrigin: (url: string) => Promise<void>;
   cloudflareMirrors?: string[];
   onSaveCloudflareMirrors?: (urlsText: string) => Promise<void>;
+  layout: ViewLayout;
+  onChangeLayout: (layout: ViewLayout) => void;
+  filteredProductsCount: number;
 }
+
+const DRAWER_LAYOUT_OPTIONS: {
+  id: ViewLayout;
+  label: string;
+  icon: React.FC<{ className?: string }>;
+  desc: string;
+}[] = [
+  { id: 'grid-4', label: '۴ در سطر', icon: LayoutGrid, desc: 'چیدمان ۴ ستونه متراکم و مدرن' },
+  { id: 'grid-3', label: '۳ در سطر', icon: Grid3X3, desc: 'چیدمان ۳ ستونه استاندارد' },
+  { id: 'list', label: 'خطی / سطری', icon: List, desc: 'نمایش افقی و سطری کالاها' },
+  { id: 'compact', label: 'کوچک و فشرده', icon: Grid2X2, desc: 'کارت‌های مینیاتوری برای پایش سریع' },
+  { id: 'large', label: 'بزرگ با جزئیات', icon: Columns2, desc: '۲ در سطر با عکس‌های درشت' },
+];
 
 export const RightDrawerMenu: React.FC<RightDrawerMenuProps> = ({
   isOpen,
@@ -86,6 +109,9 @@ export const RightDrawerMenu: React.FC<RightDrawerMenuProps> = ({
   onSaveCloudflareOrigin,
   cloudflareMirrors = [],
   onSaveCloudflareMirrors,
+  layout,
+  onChangeLayout,
+  filteredProductsCount,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [originDraft, setOriginDraft] = useState(cloudflareOrigin);
@@ -270,8 +296,47 @@ export const RightDrawerMenu: React.FC<RightDrawerMenuProps> = ({
 
         {/* Drawer Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
-          {/* Section 1: Active Backend & Failover Mode */}
+          {/* Display Mode & Filtered Product Counter */}
           <section className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-bold text-slate-200">
+                حالت نمایش و آمار لیست کالاها
+              </h3>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 tabular-nums">
+                <Layers className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <span>
+                  نمایش <strong className="text-white font-mono">{toPersianDigits(filteredProductsCount)}</strong> از{' '}
+                  <strong className="text-slate-300 font-mono">{toPersianDigits(products.length)}</strong>
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 grid grid-cols-2 gap-2">
+              {DRAWER_LAYOUT_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                const isActive = layout === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => onChangeLayout(opt.id)}
+                    title={opt.desc}
+                    className={`min-h-[38px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs transition active:scale-95 whitespace-nowrap ${
+                      isActive
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30 font-bold'
+                        : 'bg-slate-900 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800 font-medium'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <span>{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Section 1: Active Backend & Failover Mode */}
+          <section className="space-y-3 pt-2 border-t border-slate-800/80">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-200">
                 ۱. وضعیت زیرساخت و حالت ذخیره‌سازی
