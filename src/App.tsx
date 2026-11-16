@@ -51,6 +51,7 @@ import { AddProductModal } from './components/AddProductModal.tsx';
 import { BarcodeScannerModal } from './components/BarcodeScannerModal.tsx';
 import { SchedulerModal } from './components/SchedulerModal.tsx';
 import { RightDrawerMenu } from './components/RightDrawerMenu.tsx';
+import { BulkPriceInquiryView } from './components/BulkPriceInquiryView.tsx';
 import { normalizeBarcodeInput, normalizeBarcodeList } from './utils/barcodeUtils.ts';
 import { useOnlineStatus } from './hooks/useOnlineStatus.ts';
 import { usePWAInstall } from './hooks/usePWAInstall.ts';
@@ -224,6 +225,7 @@ export default function App() {
 
   const {
     selectedProductId,
+    isBulkInquiryOpen,
     isDrawerOpen,
     isAddModalOpen,
     isBarcodeScannerOpen,
@@ -231,6 +233,8 @@ export default function App() {
     deleteTarget,
     openProductDetail,
     closeProductDetail,
+    openBulkInquiry,
+    closeBulkInquiry,
     openDrawer,
     closeDrawer,
     openAddModal,
@@ -2037,6 +2041,8 @@ export default function App() {
         onRefreshAll={() => handleRefreshAll(false)}
         isRefreshing={isRefreshing}
         onOpenAddModal={openAddModal}
+        onOpenBulkInquiry={openBulkInquiry}
+        isBulkInquiryOpen={isBulkInquiryOpen}
         onOpenBarcodeScanner={openBarcodeScanner}
         onOpenSchedulerModal={openSchedulerModal}
         onOpenDrawer={openDrawer}
@@ -2062,7 +2068,15 @@ export default function App() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {selectedProduct ? (
+        {isBulkInquiryOpen ? (
+          /* Dedicated Bulk .txt Price Inquiry Page */
+          <BulkPriceInquiryView
+            existingProducts={products}
+            onProductAdded={handleProductAdded}
+            onBack={closeBulkInquiry}
+            onShowToast={showToast}
+          />
+        ) : selectedProduct ? (
           /* Dedicated Product Detailed Page */
           <ProductDetailModal
             userId={user?.uid}

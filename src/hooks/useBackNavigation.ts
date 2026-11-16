@@ -4,6 +4,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 
 export type NavLayer =
   | { kind: 'detail'; productId: string }
+  | { kind: 'bulk-inquiry' }
   | { kind: 'drawer' }
   | { kind: 'add-product' }
   | { kind: 'barcode-scanner' }
@@ -44,7 +45,7 @@ export function useBackNavigation({
   const [navStack, setNavStack] = useState<NavLayer[]>([]);
   const navStackRef = useRef<NavLayer[]>([]);
   const savedListScrollYRef = useRef<number>(0);
-  const prevSelectedProductIdRef = useRef<string | null>(null);
+  const prevWasSubViewRef = useRef<boolean>(false);
   const pendingHistoryPopRef = useRef<boolean>(false);
   const lastBackExitTapRef = useRef<number>(0);
 
@@ -64,10 +65,14 @@ export function useBackNavigation({
   }, [navStack]);
 
   // Derived view states (single source of truth)
-  const detailLayer = [...navStack]
+  const mainSubLayer = [...navStack]
     .reverse()
-    .find((entry): entry is Extract<NavLayer, { kind: 'detail' }> => entry.kind === 'detail');
-  const selectedProductId = detailLayer ? detailLayer.productId : null;
+    .find(
+      (entry): entry is Extract<NavLayer, { kind: 'detail' | 'bulk-inquiry' }> =>
+        entry.kind === 'detail' || entry.kind === 'bulk-inquiry'
+    );
+  const selectedProductId = mainSubLayer?.kind === 'detail' ? mainSubLayer.productId : null;
+  const isBulkInquiryOpen = mainSubLayer?.kind === 'bulk-inquiry';
   const isDrawerOpen = navStack.some((e) => e.kind === 'drawer');
   const isAddModalOpen = navStack.some((e) => e.kind === 'add-product');
   const isBarcodeScannerOpen = navStack.some((e) => e.kind === 'barcode-scanner');
@@ -80,12 +85,13 @@ export function useBackNavigation({
     );
   const deleteTarget = deleteLayer ? { id: deleteLayer.id, name: deleteLayer.name } : null;
 
-  // Scroll to top when entering detail; restore exact list scrollY when returning to list
+  // Scroll to top when entering detail or bulk-inquiry; restore exact list scrollY when returning to list
+  const isInSubView = selectedProductId !== null || isBulkInquiryOpen;
   useLayoutEffect(() => {
-    const prevId = prevSelectedProductIdRef.current;
-    if (prevId === null && selectedProductId !== null) {
+    const prevSubView = prevWasSubViewRef.current;
+    if (!prevSubView && isInSubView) {
       window.scrollTo({ top: 0, behavior: 'auto' });
-    } else if (prevId !== null && selectedProductId === null) {
+    } else if (prevSubView && !isInSubView) {
       const targetY = savedListScrollYRef.current;
       window.scrollTo({ top: targetY, behavior: 'auto' });
       const raf1 = window.requestAnimationFrame(() => {
@@ -94,11 +100,11 @@ export function useBackNavigation({
           window.scrollTo({ top: targetY, behavior: 'auto' });
         });
       });
-      prevSelectedProductIdRef.current = selectedProductId;
+      prevWasSubViewRef.current = isInSubView;
       return () => window.cancelAnimationFrame(raf1);
     }
-    prevSelectedProductIdRef.current = selectedProductId;
-  }, [selectedProductId]);
+    prevWasSubViewRef.current = isInSubView;
+  }, [isInSubView]);
 
   // Initialize root browser history state & standalone PWA double-back guard
   useEffect(() => {
@@ -240,15 +246,31 @@ export function useBackNavigation({
   const pushLayer = useCallback((entry: NavLayer) => {
     const current = navStackRef.current;
 
-    // Avoid duplicating the same open modal/drawer or detail product
-    if (entry.kind === 'detail') {
-      const alreadyDetail = current.find((e) => e.kind === 'detail');
-      if (!alreadyDetail) {
+    // Avoid duplicating the same open modal/drawer or detail/bulk-inquiry view
+    const wasInSubView = current.some(
+      (e) => e.kind === 'detail' || e.kind === 'bulk-inquiry'
+    );
+    if (entry.kind === 'detail' || entry.kind === 'bulk-inquiry') {
+      if (!wasInSubView) {
         savedListScrollYRef.current =
           window.scrollY || document.documentElement.scrollTop || 0;
       }
-      if (alreadyDetail && alreadyDetail.kind === 'detail' && alreadyDetail.productId === entry.productId) {
-        return;
+      if (entry.kind === 'detail') {
+        const alreadyDetail = current.find((e) => e.kind === 'detail');
+        if (
+          alreadyDetail &&
+          alreadyDetail.kind === 'detail' &&
+          alreadyDetail.productId === entry.productId
+        ) {
+          return;
+        }
+      } else {
+        const topSub = [...current]
+          .reverse()
+          .find((e) => e.kind === 'detail' || e.kind === 'bulk-inquiry');
+        if (topSub?.kind === 'bulk-inquiry') {
+          return;
+        }
       }
     } else if (current.some((e) => e.kind === entry.kind)) {
       return;
@@ -257,7 +279,9 @@ export function useBackNavigation({
     const nextStack =
       entry.kind === 'detail'
         ? [...current.filter((e) => e.kind !== 'detail'), entry]
-        : [...current, entry];
+        : entry.kind === 'bulk-inquiry'
+          ? [...current.filter((e) => e.kind !== 'bulk-inquiry'), entry]
+          : [...current, entry];
 
     navStackRef.current = nextStack;
     setNavStack(nextStack);
@@ -340,6 +364,7 @@ export function useBackNavigation({
 
   return {
     selectedProductId,
+    isBulkInquiryOpen,
     isDrawerOpen,
     isAddModalOpen,
     isBarcodeScannerOpen,
@@ -347,6 +372,8 @@ export function useBackNavigation({
     deleteTarget,
     openProductDetail: (productId: string) => pushLayer({ kind: 'detail', productId }),
     closeProductDetail: () => closeLayer('detail'),
+    openBulkInquiry: () => pushLayer({ kind: 'bulk-inquiry' }),
+    closeBulkInquiry: () => closeLayer('bulk-inquiry'),
     openDrawer: () => pushLayer({ kind: 'drawer' }),
     closeDrawer: () => closeLayer('drawer'),
     openAddModal: () => pushLayer({ kind: 'add-product' }),

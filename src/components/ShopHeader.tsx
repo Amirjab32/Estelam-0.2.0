@@ -9,6 +9,7 @@ import {
   Menu,
   Shield,
   ScanBarcode,
+  FileText,
 } from 'lucide-react';
 import { toPersianDigits } from '../utils/jalali.ts';
 import { ConnectionHealthState, SchedulerInfo, StorageMode } from '../types.ts';
@@ -19,6 +20,8 @@ interface ShopHeaderProps {
   onRefreshAll: () => void;
   isRefreshing: boolean;
   onOpenAddModal: () => void;
+  onOpenBulkInquiry: () => void;
+  isBulkInquiryOpen?: boolean;
   onOpenBarcodeScanner: () => void;
   onOpenSchedulerModal: () => void;
   onOpenDrawer: () => void;
@@ -34,6 +37,8 @@ export const ShopHeader: React.FC<ShopHeaderProps> = ({
   onRefreshAll,
   isRefreshing,
   onOpenAddModal,
+  onOpenBulkInquiry,
+  isBulkInquiryOpen = false,
   onOpenBarcodeScanner,
   onOpenSchedulerModal,
   onOpenDrawer,
@@ -141,6 +146,21 @@ export const ShopHeader: React.FC<ShopHeaderProps> = ({
 
             {/* Discreet PWA Install button when browser prompts install */}
             <PWAInstallButton compact />
+
+            {/* Bulk TXT Price Inquiry Button */}
+            <button
+              type="button"
+              onClick={onOpenBulkInquiry}
+              title="استعلام گروهی قیمت از فایل متنی (.txt)"
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition whitespace-nowrap shrink-0 active:scale-95 ${
+                isBulkInquiryOpen
+                  ? 'bg-cyan-600 border-cyan-500 text-white shadow-sm'
+                  : 'bg-slate-900 hover:bg-slate-800 text-cyan-300 hover:text-white border-cyan-500/40 hover:border-cyan-400'
+              }`}
+            >
+              <FileText className={`w-4 h-4 ${isBulkInquiryOpen ? 'text-white' : 'text-cyan-400'}`} />
+              <span>استعلام گروهی</span>
+            </button>
 
             {/* Enterprise Barcode Scanner Hub Button */}
             <button
