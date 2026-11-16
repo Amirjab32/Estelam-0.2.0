@@ -54,6 +54,7 @@ import { SchedulerModal } from './components/SchedulerModal.tsx';
 import { RightDrawerMenu } from './components/RightDrawerMenu.tsx';
 import { BulkPriceInquiryView } from './components/BulkPriceInquiryView.tsx';
 import { JalaliDateRangeFilter } from './components/JalaliDateRangeFilter.tsx';
+import { ProductSortMenu } from './components/ProductSortMenu.tsx';
 import { normalizeBarcodeList } from './utils/barcodeUtils.ts';
 import { useOnlineStatus } from './hooks/useOnlineStatus.ts';
 import { usePWAInstall } from './hooks/usePWAInstall.ts';
@@ -95,8 +96,9 @@ import {
   HardDrive,
   RefreshCw,
   Globe,
-  ArrowUpDown,
   RotateCcw,
+  SlidersHorizontal,
+  ChevronDown,
 } from 'lucide-react';
 import { JalaliDate, toPersianDigits } from './utils/jalali.ts';
 import { filterAndSortProducts, ProductSortOption } from './utils/productFilterSort.ts';
@@ -187,6 +189,7 @@ export default function App() {
       // Ignore storage errors
     }
   };
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Toast feedback
@@ -1809,13 +1812,6 @@ export default function App() {
     { id: 'مانیتور و نمایشگر', label: 'مانیتور' },
   ];
 
-  const sortOptions: { id: ProductSortOption; label: string }[] = [
-    { id: 'newest', label: 'جدیدترین' },
-    { id: 'oldest', label: 'قدیمی‌ترین' },
-    { id: 'price_desc', label: 'گران‌ترین' },
-    { id: 'price_asc', label: 'ارزانترین' },
-  ];
-
   // Combined Filtered & Sorted Products
   const filteredProducts = useMemo(
     () =>
@@ -2182,64 +2178,65 @@ export default function App() {
                   />
                 </div>
 
-                {/* Category Filter Buttons */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-                  {categories.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setSelectedCategory(c.id)}
-                      className={`whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                        selectedCategory === c.id
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sorting & Jalali Date Range Row */}
-              <div className="pt-3 border-t border-slate-800/80 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300 whitespace-nowrap">
-                    <ArrowUpDown className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                    <span>مرتب‌سازی:</span>
-                  </span>
-                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 overflow-x-auto max-w-full">
-                    {sortOptions.map((opt) => {
-                      const isActive = sortBy === opt.id;
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => handleSortChange(opt.id)}
-                          className={`min-h-[34px] px-3 py-1.5 rounded-lg text-xs transition whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
-                            isActive
-                              ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30 font-bold'
-                              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 font-medium'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
+                {/* Category Filter Buttons & Collapsible Sort/Date Toggle */}
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none flex-1 md:flex-initial">
+                    {categories.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedCategory(c.id)}
+                        className={`whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                          selectedCategory === c.id
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
                   </div>
-                </div>
 
-                <JalaliDateRangeFilter
-                  fromDate={fromDate}
-                  toDate={toDate}
-                  onChangeFromDate={setFromDate}
-                  onChangeToDate={setToDate}
-                  onClear={() => {
-                    setFromDate(null);
-                    setToDate(null);
-                  }}
-                />
+                  <button
+                    type="button"
+                    onClick={() => setIsFilterPanelOpen((prev) => !prev)}
+                    aria-expanded={isFilterPanelOpen}
+                    className={`shrink-0 whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                      isFilterPanelOpen
+                        ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                        : fromDate || toDate || sortBy !== 'newest'
+                          ? 'bg-indigo-950/50 text-indigo-300 border-indigo-500/60 hover:bg-indigo-950/80'
+                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+                    <span>مرتب‌سازی و تاریخ</span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${
+                        isFilterPanelOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
+
+              {/* Collapsible Sorting & Jalali Date Range Row */}
+              {isFilterPanelOpen && (
+                <div className="pt-3 border-t border-slate-800/80 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <ProductSortMenu value={sortBy} onChange={handleSortChange} />
+
+                  <JalaliDateRangeFilter
+                    fromDate={fromDate}
+                    toDate={toDate}
+                    onChangeFromDate={setFromDate}
+                    onChangeToDate={setToDate}
+                    onClear={() => {
+                      setFromDate(null);
+                      setToDate(null);
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Layout Switcher & Status Toolbar */}
