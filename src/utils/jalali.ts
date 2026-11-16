@@ -210,3 +210,75 @@ export function getCurrentPersianDate(): {
     fullDateString: `${dayName}، ${toPersianDigits(j.jd)} ${monthName} ${toPersianDigits(j.jy)}`,
   };
 }
+
+/**
+ * Returns today's date in the Jalali (Solar Hijri) calendar
+ */
+export function getTodayJalaliDate(): JalaliDate {
+  const now = new Date();
+  return gregorianToJalali(now.getFullYear(), now.getMonth() + 1, now.getDate());
+}
+
+/**
+ * Checks if a Jalali year is a leap year (Esfand has 30 days)
+ * Uses round-trip conversion against the canonical jalaliToGregorian / gregorianToJalali functions.
+ */
+export function isJalaliLeapYear(jy: number): boolean {
+  const g = jalaliToGregorian(jy, 12, 30);
+  const back = gregorianToJalali(g.gy, g.gm, g.gd);
+  return back.jy === jy && back.jm === 12 && back.jd === 30;
+}
+
+/**
+ * Returns number of days in a Jalali month (1..12)
+ */
+export function getJalaliMonthLength(jy: number, jm: number): number {
+  if (jm >= 1 && jm <= 6) return 31;
+  if (jm >= 7 && jm <= 11) return 30;
+  return isJalaliLeapYear(jy) ? 30 : 29;
+}
+
+/**
+ * Returns Persian weekday index (0 = Saturday / شنبه ... 6 = Friday / جمعه) for the 1st of a Jalali month
+ */
+export function getJalaliMonthStartWeekday(jy: number, jm: number): number {
+  const g = jalaliToGregorian(jy, jm, 1);
+  const jsDay = new Date(g.gy, g.gm - 1, g.gd).getDay();
+  return (jsDay + 1) % 7;
+}
+
+/**
+ * Compares two Jalali dates: < 0 if a < b, 0 if equal, > 0 if a > b
+ */
+export function compareJalaliDates(a: JalaliDate, b: JalaliDate): number {
+  if (a.jy !== b.jy) return a.jy - b.jy;
+  if (a.jm !== b.jm) return a.jm - b.jm;
+  return a.jd - b.jd;
+}
+
+/**
+ * Formats a JalaliDate as YYYY/MM/DD with Persian digits
+ */
+export function formatJalaliDateLabel(date: JalaliDate): string {
+  const y = toPersianDigits(date.jy);
+  const m = toPersianDigits(String(date.jm).padStart(2, '0'));
+  const d = toPersianDigits(String(date.jd).padStart(2, '0'));
+  return `${y}/${m}/${d}`;
+}
+
+/**
+ * Converts a Jalali date to local timestamp at 00:00:00.000
+ */
+export function jalaliToStartOfDayMs(date: JalaliDate): number {
+  const g = jalaliToGregorian(date.jy, date.jm, date.jd);
+  return new Date(g.gy, g.gm - 1, g.gd, 0, 0, 0, 0).getTime();
+}
+
+/**
+ * Converts a Jalali date to local timestamp at 23:59:59.999
+ */
+export function jalaliToEndOfDayMs(date: JalaliDate): number {
+  const g = jalaliToGregorian(date.jy, date.jm, date.jd);
+  return new Date(g.gy, g.gm - 1, g.gd, 23, 59, 59, 999).getTime();
+}
+

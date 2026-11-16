@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
 import { auth, googleProvider } from './firebase.ts';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -53,7 +53,8 @@ import { BarcodeScannerModal } from './components/BarcodeScannerModal.tsx';
 import { SchedulerModal } from './components/SchedulerModal.tsx';
 import { RightDrawerMenu } from './components/RightDrawerMenu.tsx';
 import { BulkPriceInquiryView } from './components/BulkPriceInquiryView.tsx';
-import { normalizeBarcodeInput, normalizeBarcodeList } from './utils/barcodeUtils.ts';
+import { JalaliDateRangeFilter } from './components/JalaliDateRangeFilter.tsx';
+import { normalizeBarcodeList } from './utils/barcodeUtils.ts';
 import { useOnlineStatus } from './hooks/useOnlineStatus.ts';
 import { usePWAInstall } from './hooks/usePWAInstall.ts';
 import { useBackNavigation } from './hooks/useBackNavigation.ts';
@@ -94,8 +95,11 @@ import {
   HardDrive,
   RefreshCw,
   Globe,
+  ArrowUpDown,
+  RotateCcw,
 } from 'lucide-react';
-import { toPersianDigits } from './utils/jalali.ts';
+import { JalaliDate, toPersianDigits } from './utils/jalali.ts';
+import { filterAndSortProducts, ProductSortOption } from './utils/productFilterSort.ts';
 
 async function fetchLiveDigikalaPrice(sourceUrl: string) {
   if (!sourceUrl?.trim()) return null;
@@ -163,9 +167,26 @@ export default function App() {
     localStorage.setItem('shop_preferred_layout', newLayout);
   };
 
-  // Filters & Search
+  // Filters, Sorting & Search
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [fromDate, setFromDate] = useState<JalaliDate | null>(null);
+  const [toDate, setToDate] = useState<JalaliDate | null>(null);
+  const [sortBy, setSortBy] = useState<ProductSortOption>(() => {
+    const saved = localStorage.getItem('shop_preferred_sort');
+    if (saved === 'newest' || saved === 'oldest' || saved === 'price_desc' || saved === 'price_asc') {
+      return saved;
+    }
+    return 'newest';
+  });
+  const handleSortChange = (nextSort: ProductSortOption) => {
+    setSortBy(nextSort);
+    try {
+      localStorage.setItem('shop_preferred_sort', nextSort);
+    } catch {
+      // Ignore storage errors
+    }
+  };
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Toast feedback
@@ -1788,18 +1809,36 @@ export default function App() {
     { id: 'مانیتور و نمایشگر', label: 'مانیتور' },
   ];
 
-  // Filtered Products
-  const filteredProducts = products.filter((prod) => {
-    const lowerSearch = searchTerm.toLowerCase();
-    const normalizedSearchBarcode = normalizeBarcodeInput(searchTerm);
-    const matchSearch =
-      prod.name.toLowerCase().includes(lowerSearch) ||
-      prod.category.toLowerCase().includes(lowerSearch) ||
-      (normalizedSearchBarcode.length > 0 &&
-        (prod.barcodes || []).some((b) => b.includes(normalizedSearchBarcode)));
-    const matchCat = selectedCategory === 'all' || prod.category === selectedCategory;
-    return matchSearch && matchCat;
-  });
+  const sortOptions: { id: ProductSortOption; label: string }[] = [
+    { id: 'newest', label: 'جدیدترین' },
+    { id: 'oldest', label: 'قدیمی‌ترین' },
+    { id: 'price_desc', label: 'گران‌ترین' },
+    { id: 'price_asc', label: 'ارزانترین' },
+  ];
+
+  // Combined Filtered & Sorted Products
+  const filteredProducts = useMemo(
+    () =>
+      filterAndSortProducts(products, {
+        searchTerm,
+        selectedCategory,
+        fromDate,
+        toDate,
+        sortBy,
+      }),
+    [products, searchTerm, selectedCategory, fromDate, toDate, sortBy]
+  );
+
+  const hasActiveFilters = Boolean(
+    searchTerm.trim() || selectedCategory !== 'all' || fromDate || toDate
+  );
+
+  const handleClearAllFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('all');
+    setFromDate(null);
+    setToDate(null);
+  };
 
   // View layout definitions
   const layoutOptions: {
@@ -2129,34 +2168,77 @@ export default function App() {
         ) : (
           /* Dashboard & Product Grid View */
           <div className="space-y-5">
-            {/* Search & Filter Bar */}
-            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute top-3.5 right-3.5" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="جستجو در میان کالاها، لپ‌تاپ‌ها، قطعات، ماوس و مانیتور..."
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950 pr-10 pl-4 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+            {/* Search, Category, Sort & Jalali Date Range Bar */}
+            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-md space-y-3">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute top-3.5 right-3.5" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="جستجو در میان کالاها، لپ‌تاپ‌ها، قطعات، ماوس و مانیتور..."
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 pr-10 pl-4 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                {/* Category Filter Buttons */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+                  {categories.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(c.id)}
+                      className={`whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                        selectedCategory === c.id
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Category Filter Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-                {categories.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedCategory(c.id)}
-                    className={`whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                      selectedCategory === c.id
-                        ? 'bg-indigo-600 text-white shadow-sm'
-                        : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
-                    }`}
-                  >
-                    {c.label}
-                  </button>
-                ))}
+              {/* Sorting & Jalali Date Range Row */}
+              <div className="pt-3 border-t border-slate-800/80 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300 whitespace-nowrap">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>مرتب‌سازی:</span>
+                  </span>
+                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 overflow-x-auto max-w-full">
+                    {sortOptions.map((opt) => {
+                      const isActive = sortBy === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => handleSortChange(opt.id)}
+                          className={`min-h-[34px] px-3 py-1.5 rounded-lg text-xs transition whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                            isActive
+                              ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30 font-bold'
+                              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 font-medium'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <JalaliDateRangeFilter
+                  fromDate={fromDate}
+                  toDate={toDate}
+                  onChangeFromDate={setFromDate}
+                  onChangeToDate={setToDate}
+                  onClear={() => {
+                    setFromDate(null);
+                    setToDate(null);
+                  }}
+                />
               </div>
             </div>
 
@@ -2208,15 +2290,29 @@ export default function App() {
                 <Package className="w-12 h-12 text-slate-600 mx-auto" />
                 <h3 className="text-base font-bold text-white">کالایی یافت نشد</h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                  با استفاده از دکمه «افزودن کالا» کالای جدید ثبت کنید یا از منوی همبرگری بالا فایل بکاپ JSON را بازیابی نمایید.
+                  {products.length > 0 && hasActiveFilters
+                    ? 'هیچ کالایی با فیلترهای جستجو، دسته‌بندی یا بازه تاریخ انتخاب‌شده مطابقت ندارد.'
+                    : 'با استفاده از دکمه «افزودن کالا» کالای جدید ثبت کنید یا از منوی همبرگری بالا فایل بکاپ JSON را بازیابی نمایید.'}
                 </p>
-                <button
-                  onClick={openAddModal}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold transition"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>معرفی کالای اول</span>
-                </button>
+                {products.length > 0 && hasActiveFilters ? (
+                  <button
+                    type="button"
+                    onClick={handleClearAllFilters}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>پاک کردن همه فیلترها</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openAddModal}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold transition"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>معرفی کالای اول</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className={getGridContainerClass(layout)}>

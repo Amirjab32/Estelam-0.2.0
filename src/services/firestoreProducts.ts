@@ -68,10 +68,22 @@ function timestampToIso(ts: unknown): string {
   return new Date().toISOString();
 }
 
+function timestampToOptionalIso(ts: unknown): string {
+  if (ts instanceof Timestamp) {
+    return ts.toDate().toISOString();
+  }
+  if (typeof ts === 'string' && ts.trim().length > 0) {
+    const ms = Date.parse(ts.trim());
+    if (Number.isFinite(ms)) return new Date(ms).toISOString();
+  }
+  return '';
+}
+
 function mapDocToProduct(data: Record<string, any>): ProductItem {
   const currentPrice = toNumber(data.currentPriceToman, 0);
   const margin = normalizeMargin(data.marginPercent ?? 8);
   const quote = toNumber(data.customerQuoteToman, calculateCustomerQuote(currentPrice, margin));
+  const createdIso = timestampToOptionalIso(data.createdAt);
 
   return {
     id: String(data.id),
@@ -91,8 +103,8 @@ function mapDocToProduct(data: Record<string, any>): ProductItem {
         : 'in_stock',
     warranty: String(data.warranty || ''),
     lastRefreshedAt: timestampToIso(data.lastRefreshedAt),
-    createdAt: timestampToIso(data.createdAt),
-    updatedAt: timestampToIso(data.updatedAt || data.lastRefreshedAt || data.createdAt),
+    createdAt: createdIso,
+    updatedAt: timestampToIso(data.updatedAt || data.lastRefreshedAt || createdIso),
     notes: String(data.notes || ''),
     barcodes: normalizeBarcodeList(data.barcodes),
   };
@@ -423,7 +435,16 @@ export function subscribeToSharedProducts(
     q,
     (snapshot) => {
       const items = snapshot.docs.map((d) => mapDocToProduct(d.data()));
-      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      items.sort((a, b) => {
+        const aMs = a.createdAt ? Date.parse(a.createdAt) : NaN;
+        const bMs = b.createdAt ? Date.parse(b.createdAt) : NaN;
+        const aValid = Number.isFinite(aMs);
+        const bValid = Number.isFinite(bMs);
+        if (!aValid && !bValid) return 0;
+        if (!aValid) return 1;
+        if (!bValid) return -1;
+        return bMs - aMs;
+      });
       onData(items);
     },
     (error) => {

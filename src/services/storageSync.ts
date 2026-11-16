@@ -226,6 +226,16 @@ export function getJalaliNowParts(): { jalaliDate: string; jalaliTime: string } 
   return { jalaliDate, jalaliTime };
 }
 
+function normalizeCreatedAt(rawCreatedAt: unknown): string {
+  if (typeof rawCreatedAt === 'string' && rawCreatedAt.trim().length > 0) {
+    const ms = Date.parse(rawCreatedAt.trim());
+    if (Number.isFinite(ms)) {
+      return new Date(ms).toISOString();
+    }
+  }
+  return '';
+}
+
 export function normalizeProductItem(raw: any, index = 0): ProductItem {
   const price = Math.max(0, Number(raw?.currentPriceToman) || 0);
   const lastPrice = Math.max(0, Number(raw?.lastPriceToman) || price);
@@ -240,6 +250,7 @@ export function normalizeProductItem(raw: any, index = 0): ProductItem {
       : calculateCustomerQuote(price, margin);
 
   const nowIso = new Date().toISOString();
+  const createdAtIso = normalizeCreatedAt(raw?.createdAt);
   return {
     id: String(raw?.id || `prod_${Date.now()}_${index}`),
     name: String(raw?.name || 'کالای بدون نام').trim() || 'کالای بدون نام',
@@ -258,8 +269,8 @@ export function normalizeProductItem(raw: any, index = 0): ProductItem {
         : 'in_stock',
     warranty: String(raw?.warranty || ''),
     lastRefreshedAt: String(raw?.lastRefreshedAt || nowIso),
-    createdAt: String(raw?.createdAt || nowIso),
-    updatedAt: String(raw?.updatedAt || raw?.lastRefreshedAt || raw?.createdAt || nowIso),
+    createdAt: createdAtIso,
+    updatedAt: String(raw?.updatedAt || raw?.lastRefreshedAt || createdAtIso || nowIso),
     notes: String(raw?.notes || ''),
     barcodes: normalizeBarcodeList(raw?.barcodes),
   };
@@ -385,9 +396,16 @@ export function mergeBundles(
   base.products.forEach((p) => consider(p, false));
   incoming.products.forEach((p) => consider(p, true));
 
-  const products = Array.from(productMap.values()).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  const products = Array.from(productMap.values()).sort((a, b) => {
+    const aMs = a.createdAt ? Date.parse(a.createdAt) : NaN;
+    const bMs = b.createdAt ? Date.parse(b.createdAt) : NaN;
+    const aValid = Number.isFinite(aMs);
+    const bValid = Number.isFinite(bMs);
+    if (!aValid && !bValid) return 0;
+    if (!aValid) return 1;
+    if (!bValid) return -1;
+    return bMs - aMs;
+  });
 
   const histories: Record<string, PriceHistoryItem[]> = {};
   products.forEach((p) => {
@@ -437,11 +455,13 @@ export function parseAndValidateBackupJson(jsonText: string): BackupBundle {
   const { jalaliDate, jalaliTime } = getJalaliNowParts();
   const histories: Record<string, PriceHistoryItem[]> = {};
 
+  const nowIso = new Date().toISOString();
   products.forEach((p) => {
     const list = Array.isArray(rawHistories[p.id]) ? rawHistories[p.id] : [];
+    const fallbackTs = p.createdAt || nowIso;
     if (list.length > 0) {
       histories[p.id] = list.map((h: any) => ({
-        timestamp: String(h?.timestamp || p.createdAt),
+        timestamp: String(h?.timestamp || fallbackTs),
         jalaliDate: String(h?.jalaliDate || jalaliDate),
         jalaliTime: String(h?.jalaliTime || jalaliTime),
         priceToman: Number(h?.priceToman) || p.currentPriceToman,
@@ -452,7 +472,7 @@ export function parseAndValidateBackupJson(jsonText: string): BackupBundle {
     } else {
       histories[p.id] = [
         {
-          timestamp: p.createdAt,
+          timestamp: fallbackTs,
           jalaliDate,
           jalaliTime,
           priceToman: p.currentPriceToman,
