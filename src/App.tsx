@@ -8,6 +8,7 @@ import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/aut
 import { auth, googleProvider } from './firebase.ts';
 import firebaseConfig from '../firebase-applet-config.json';
 import {
+  addBulkProductsToFirestore,
   addProductToFirestore,
   applyBundleToFirestore,
   calculateCustomerQuote,
@@ -1689,6 +1690,40 @@ export default function App() {
     }
   };
 
+  // Bulk Add Products from Bulk TXT Inquiry
+  const handleBulkProductsAdded = async (newProducts: ProductItem[]) => {
+    if (newProducts.length === 0) return;
+    const normalizedList = newProducts.map((p) => normalizeProductItem(p));
+
+    if (storageMode === 'firebase' && user) {
+      await addBulkProductsToFirestore(user.uid, normalizedList);
+      return;
+    }
+
+    const { jalaliDate, jalaliTime } = getJalaliNowParts();
+    const nextProducts = [...normalizedList, ...productsRef.current];
+    const nextHistories = { ...historiesRef.current };
+
+    for (const item of normalizedList) {
+      nextHistories[item.id] = [
+        {
+          timestamp: item.createdAt,
+          jalaliDate,
+          jalaliTime,
+          priceToman: item.currentPriceToman,
+          customerQuoteToman: item.customerQuoteToman,
+          source:
+            storageMode === 'cloudflare'
+              ? 'ثبت گروهی در کلادفلر KV'
+              : 'ثبت گروهی در حافظه محلی',
+          changePercent: 0,
+        },
+      ];
+    }
+
+    await commitLocalOrCloudflareBundle(nextProducts, nextHistories, deletedIdsRef.current);
+  };
+
   // Export JSON Backup manually from Right Drawer
   const handleExportJson = () => {
     downloadBackupJson({
@@ -2073,6 +2108,7 @@ export default function App() {
           <BulkPriceInquiryView
             existingProducts={products}
             onProductAdded={handleProductAdded}
+            onBulkProductsAdded={handleBulkProductsAdded}
             onBack={closeBulkInquiry}
             onShowToast={showToast}
           />

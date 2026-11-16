@@ -519,6 +519,72 @@ export async function addProductToFirestore(
   };
 }
 
+export async function addBulkProductsToFirestore(
+  actorUid: string,
+  inputs: Partial<ProductItem>[],
+  shopId = SHARED_SHOP_ID
+): Promise<ProductItem[]> {
+  if (inputs.length === 0) return [];
+  const productsPath = `shops/${shopId}/products`;
+  const createdItems: ProductItem[] = [];
+  const CHUNK_SIZE = 15;
+  const baseTs = Date.now();
+
+  for (let i = 0; i < inputs.length; i += CHUNK_SIZE) {
+    const chunk = inputs.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
+
+    chunk.forEach((input, idx) => {
+      const globalIdx = i + idx;
+      const prodId = sanitizeId(input.id || `prod_${baseTs}_${globalIdx}`, 'prod');
+      const histId = sanitizeId(`hist_${baseTs}_${globalIdx}`, 'hist');
+      const prodPayload = buildCreateSharedProductPayload(actorUid, prodId, input, shopId);
+      const histPayload = buildCreateSharedHistoryPayload(
+        actorUid,
+        prodId,
+        histId,
+        prodPayload.currentPriceToman,
+        prodPayload.customerQuoteToman,
+        'ثبت گروهی از استعلام فایل متنی',
+        0,
+        undefined,
+        undefined,
+        shopId
+      );
+
+      batch.set(doc(db, 'shops', shopId, 'products', prodId), prodPayload);
+      batch.set(doc(db, 'shops', shopId, 'products', prodId, 'history', histId), histPayload);
+
+      const nowIso = new Date().toISOString();
+      createdItems.push({
+        id: prodId,
+        name: prodPayload.name,
+        category: prodPayload.category,
+        sourceUrl: prodPayload.sourceUrl,
+        imageUrl: prodPayload.imageUrl,
+        currentPriceToman: prodPayload.currentPriceToman,
+        lastPriceToman: prodPayload.lastPriceToman,
+        marginPercent: prodPayload.marginPercent,
+        customerQuoteToman: prodPayload.customerQuoteToman,
+        stockStatus: prodPayload.stockStatus,
+        warranty: prodPayload.warranty,
+        lastRefreshedAt: nowIso,
+        createdAt: nowIso,
+        notes: prodPayload.notes,
+        barcodes: prodPayload.barcodes,
+      });
+    });
+
+    try {
+      await batch.commit();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, productsPath);
+    }
+  }
+
+  return createdItems;
+}
+
 export async function updateProductBarcodesInFirestore(
   actorUid: string,
   product: ProductItem,
